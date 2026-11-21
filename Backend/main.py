@@ -6,7 +6,9 @@ from rich.console import Console
 from rich.table import Table
 from rich.text import Text
 
+from core.arp_scanner import scan_dispositivos
 from core.classifier import classify
+from core.red_local import get_red_local
 from core.trusted import load_trusted, trust_ssid, untrust_ssid
 from core.wifi_scanner import scan_merged
 
@@ -43,6 +45,11 @@ def _parse_args() -> argparse.Namespace:
         "--confiables",
         action="store_true",
         help="lista los perfiles de confianza guardados",
+    )
+    parser.add_argument(
+        "--dispositivos",
+        action="store_true",
+        help="lista los dispositivos de la red local mediante ARP",
     )
     return parser.parse_args()
 
@@ -85,6 +92,41 @@ def _listar_confiables(consola: Console) -> None:
                 str(perfil.get("autenticacion") or "-"),
                 str(perfil.get("cifrado") or "-"),
             )
+
+    consola.print(tabla)
+
+
+def _mostrar_dispositivos(consola: Console) -> None:
+    if get_red_local() is None:
+        consola.print(
+            "[yellow]No estás conectado a ninguna red WiFi. "
+            "Conéctate para ver los dispositivos.[/yellow]"
+        )
+        return
+
+    with consola.status("Escaneando red local (esto puede tardar unos segundos)..."):
+        dispositivos = scan_dispositivos()
+
+    if not dispositivos:
+        consola.print(
+            "[yellow]No se detectaron otros dispositivos. "
+            "Intenta de nuevo en unos segundos.[/yellow]"
+        )
+        return
+
+    tabla = Table(title="Dispositivos en la red local", min_width=80)
+    tabla.add_column("IP", style="cyan", no_wrap=True)
+    tabla.add_column("MAC", style="magenta", no_wrap=True)
+    tabla.add_column("Fabricante")
+    tabla.add_column("Este equipo", justify="center")
+
+    for dispositivo in dispositivos:
+        tabla.add_row(
+            str(dispositivo.get("ip") or "-"),
+            str(dispositivo.get("mac") or "-"),
+            str(dispositivo.get("fabricante") or "Desconocido"),
+            "🖥️" if dispositivo.get("es_este_equipo") else "",
+        )
 
     consola.print(tabla)
 
@@ -187,6 +229,9 @@ def main() -> None:
 
     if args.confiables:
         _listar_confiables(consola)
+        return
+    if args.dispositivos:
+        _mostrar_dispositivos(consola)
         return
     if args.olvidar:
         _olvidar(consola, args.olvidar)

@@ -3,6 +3,7 @@ from __future__ import annotations
 import platform
 import re
 import subprocess
+import time
 import unicodedata
 
 NETSH_ARGS = ["netsh", "wlan", "show", "networks", "mode=bssid"]
@@ -285,3 +286,33 @@ def group_by_ssid(redes: list[dict]) -> dict[str, list[dict]]:
         agrupadas.setdefault(ssid, []).append(red)
 
     return agrupadas
+
+
+def scan_merged(n: int = 2, pausa: float = 2.0) -> list[dict]:
+    veces = max(1, int(n))
+    por_bssid: dict[str, dict] = {}
+
+    for intento in range(veces):
+        for red in scan_networks():
+            bssid = str(red.get("bssid") or "").strip().upper()
+            if not bssid:
+                continue
+
+            senal = int(red.get("senal") or 0)
+            actual = por_bssid.get(bssid)
+            if actual is None or senal > int(actual.get("senal") or 0):
+                fusionada = dict(red)
+                fusionada["bssid"] = bssid
+                fusionada["senal"] = senal
+                por_bssid[bssid] = fusionada
+
+        if intento < veces - 1 and pausa > 0:
+            time.sleep(pausa)
+
+    return sorted(
+        por_bssid.values(),
+        key=lambda red: (
+            str(red.get("ssid") or "<oculta>"),
+            str(red.get("bssid") or ""),
+        ),
+    )

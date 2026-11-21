@@ -127,6 +127,56 @@ def test_oui_distinto_mismo_cifrado_precaucion():
     assert [item["puntaje"] for item in resultado["redes"]] == [25, 25]
 
 
+def test_motivo_oui_distinto_muestra_dos_ouis_reales():
+    redes = [
+        red("44:48:B9:F6:51:C0", ssid="OUI"),
+        red("11:22:33:44:55:66", ssid="OUI"),
+    ]
+
+    resultado = classify(redes)[0]
+    mensajes = [
+        motivo
+        for item in resultado["redes"]
+        for motivo in item["motivos"]
+        if motivo.startswith("OUI distinto (")
+    ]
+
+    assert len(mensajes) == 2
+    for mensaje in mensajes:
+        assert "44:48:B9" in mensaje
+        assert "11:22:33" in mensaje
+        assert mensaje.count("44:48:B9") == 1
+        assert mensaje.count("11:22:33") == 1
+        assert " vs " in mensaje
+
+
+def test_motivo_auth_distinta_muestra_dos_valores_reales():
+    redes = [
+        red("44:48:B9:F6:51:C0", ssid="Mixta"),
+        red(
+            "44:48:B9:F6:51:C1",
+            ssid="Mixta",
+            autenticacion="Abierta",
+            cifrado="Ninguna",
+        ),
+    ]
+
+    resultado = classify(redes)[0]
+    mensajes = [
+        motivo
+        for item in resultado["redes"]
+        for motivo in item["motivos"]
+        if motivo.startswith("Mismo nombre con otra seguridad (")
+    ]
+
+    assert len(mensajes) == 2
+    for mensaje in mensajes:
+        assert "WPA2-Personal/CCMP" in mensaje
+        assert "Abierta/Ninguna" in mensaje
+        assert mensaje.count("WPA2-Personal/CCMP") == 1
+        assert mensaje.count("Abierta/Ninguna") == 1
+
+
 def test_oui_distinto_y_cifrado_distinto_riesgo():
     redes = [
         red("44:48:B9:F6:51:C0", ssid="Mixta"),

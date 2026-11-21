@@ -111,6 +111,20 @@ def _minority(valores: list[str]) -> tuple[set[int], int | None]:
     return {i for i, valor in enumerate(valores) if valor != mayoritario}, referencia
 
 
+def _otro_valor(valores: list[str], indice: int, referencia: int | None) -> str:
+    if (
+        referencia is not None
+        and referencia != indice
+        and valores[referencia] != valores[indice]
+    ):
+        return valores[referencia]
+
+    for otro, valor in enumerate(valores):
+        if otro != indice and valor != valores[indice]:
+            return valor
+    return ""
+
+
 def _nuevo_resultado(red: dict) -> dict:
     return {
         "bssid": str(red.get("bssid") or "").strip().upper(),
@@ -157,7 +171,8 @@ def _clasificar_no_confiable(aps: list[dict]) -> list[dict]:
 
     minoria, referencia = _minority(seguridades)
     for indice in minoria:
-        otro = aps[referencia] if referencia is not None else aps[0]
+        otro_valor = _otro_valor(seguridades, indice, referencia)
+        otro = aps[seguridades.index(otro_valor)] if otro_valor else aps[0]
         _sumar(
             resultados[indice],
             "auth_distinta",
@@ -175,11 +190,11 @@ def _clasificar_no_confiable(aps: list[dict]) -> list[dict]:
 
     minoria, referencia = _minority(ouis)
     for indice in minoria:
-        otro = aps[referencia] if referencia is not None else aps[0]
+        otro_oui = _otro_valor(ouis, indice, referencia)
         _sumar(
             resultados[indice],
             "oui_distinto",
-            f"OUI distinto ({ouis[indice]} vs {normalizar_oui(otro.get('bssid'))})",
+            f"OUI distinto ({ouis[indice]} vs {otro_oui})",
         )
 
     conteo_ouis = Counter(ouis)

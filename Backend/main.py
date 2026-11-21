@@ -1,16 +1,28 @@
 import argparse
+import platform
 import sys
 from collections import Counter
+from pathlib import Path
 
 from rich.console import Console
+from rich.live import Live
 from rich.table import Table
 from rich.text import Text
 
 from core.arp_scanner import scan_dispositivos
 from core.classifier import classify
+from core.consumo_propio import medir_consumo_propio
+from core.entorno import descargar_e_instalar_npcap, es_administrador, npcap_instalado
 from core.red_local import get_red_local
+from core.trafico import (
+    _gateway_ip,
+    obtener_mac,
+    monitorear,
+)
 from core.trusted import load_trusted, trust_ssid, untrust_ssid
 from core.wifi_scanner import scan_merged
+
+RUTA_ADVERTENCIA = Path(__file__).resolve().parent / "data" / ".advertencia_aceptada"
 
 ESTADOS = {
     "segura": "[green]🟢 segura[/green]",
@@ -19,6 +31,36 @@ ESTADOS = {
     "oculta": "[white]⚪ oculta[/white]",
 }
 ORDEN_ESTADOS = ("segura", "precaucion", "riesgo", "oculta")
+
+
+def _confirmar(pregunta: str) -> bool:
+    try:
+        respuesta = input(pregunta)
+    except EOFError:
+        return False
+    return respuesta.strip().lower() in ("s", "si")
+
+
+def _advertencia_inicial(consola: Console) -> None:
+    if RUTA_ADVERTENCIA.exists():
+        return
+
+    consola.print(
+        "[yellow]DoppelSSID incluye una función de monitoreo de tráfico que "
+        "intercepta temporalmente las comunicaciones de otros dispositivos "
+        "en la red (ARP spoofing). Úsala ÚNICAMENTE en una red que tú "
+        "administres o poseas (tu casa, tu laboratorio). Usarla en redes "
+        "ajenas sin autorización explícita es ilegal en la mayoría de "
+        "países, incluyendo Colombia (Ley 1273 de 2009).[/yellow]"
+    )
+    if not _confirmar("Entendido (s/N): "):
+        raise SystemExit(0)
+
+    try:
+        RUTA_ADVERTENCIA.parent.mkdir(parents=True, exist_ok=True)
+        RUTA_ADVERTENCIA.write_text("aceptada\n", encoding="utf-8")
+    except OSError:
+        pass
 
 
 def _parse_args() -> argparse.Namespace:
@@ -50,6 +92,11 @@ def _parse_args() -> argparse.Namespace:
         "--dispositivos",
         action="store_true",
         help="lista los dispositivos de la red local mediante ARP",
+    )
+    parser.add_argument(
+        "--trafico",
+        action="store_true",
+        help="monitorea el consumo de tráfico por dispositivo",
     )
     return parser.parse_args()
 
@@ -214,6 +261,138 @@ def _mostrar_resultados(consola: Console, resultados: list[dict]) -> None:
     consola.print(f"[bold]Resumen:[/bold] {resumen}")
 
 
+def _tabla_trafico(resultados: list[dict], titulo: str) -> Table:
+    tabla = Table(title=titulo, min_width=70)
+    tabla.add_column("IP", style="cyan", no_wrap=True)
+    tabla.add_column("Fabricante")
+    tabla.add_column("KB", justify="right")
+    tabla.add_column("%", justify="right")
+    tabla.add_column("Barra")
+
+    if not resultados:
+        tabla.add_row("-", "-", "0,0", "0", "")
+        return tabla
+
+    for resultado in resultados:
+        porcentaje = int(resultado.get("porcentaje") or 0)
+        llenos = min(20, max(0, round(porcentaje / 5)))
+        barra = "█" * llenos + "·" * (20 - llenos)
+        ip = str(resultado.get("ip") or "-")
+        if resultado.get("es_este_equipo"):
+            ip += " (este equipo)"
+        tabla.add_row(
+            ip,
+            str(resultado.get("fabricante") or "Desconocido"),
+            f"{int(resultado.get('bytes') or 0) / 1024:.1f}",
+            str(porcentaje),
+            barra,
+        )
+    return tabla
+
+
+def _mostrar_consumo_propio(consola: Console) -> None:
+    with consola.status("Midiendo tu consumo durante 10 segundos..."):
+        datos = medir_consumo_propio()
+
+    tabla = Table(title="Consumo de este equipo", min_width=60)
+    tabla.add_column("Métrica")
+    tabla.add_column("Valor", justify="right")
+    tabla.add_row("Enviados", f"{int(datos.get('bytes_enviados') or 0)} B")
+    tabla.add_row("Recibidos", f"{int(datos.get('bytes_recibidos') or 0)} B")
+    tabla.add_row("Totales", f"{int(datos.get('bytes_totales') or 0)} B")
+    tabla.add_row("Tasa", f"{float(datos.get('kb_s') or 0):.2f} KB/s")
+    consola.print(tabla)
+
+
+def _flujo_trafico(consola: Console) -> None:
+    if not es_administrador():
+        consola.print(
+            "[red]Esta función necesita permisos de administrador. "
+            "Cierra el programa y vuelve a abrirlo con 'Ejecutar como "
+            "administrador' (Windows) o con sudo (Linux).[/red]"
+        )
+        return
+
+    if platform.system() == "Windows" and not npcap_instalado():
+        consola.print(
+            "[yellow]No tienes Npcap instalado (necesario para ver el tráfico "
+            "de otros dispositivos). Sin él, solo puedes ver el consumo de tu "
+            "propio equipo.[/yellow]"
+        )
+        if _confirmar("¿Deseas descargarlo e instalarlo ahora? (s/N): "):
+            with consola.status("Descargando e instalando Npcap..."):
+                instalado = descargar_e_instalar_npcap()
+            if not instalado or not npcap_instalado():
+                consola.print(
+                    "[red]Instala Npcap manualmente desde "
+                    "https://npcap.com/#download y vuelve a intentarlo.[/red]"
+                )
+                return
+        else:
+            consola.print(
+                "[yellow]Continuando en modo limitado: solo se mostrará "
+                "tu propio consumo.[/yellow]"
+            )
+            _mostrar_consumo_propio(consola)
+            return
+
+    consola.print(
+        "[bold red]⚠️  Vas a interceptar tráfico de TODOS los dispositivos de "
+        "esta red para medir su consumo. Solo continúa si administras esta red.[/bold red]"
+    )
+    if not _confirmar(
+        "¿Es esta tu propia red y confirmas que tienes autorización para monitorearla? (s/N): "
+    ):
+        consola.print("[yellow]Operación cancelada; no se tocó la red.[/yellow]")
+        return
+
+    red = get_red_local()
+    if red is None:
+        consola.print(
+            "[yellow]No estás conectado a ninguna red WiFi. "
+            "Conéctate para ver el tráfico.[/yellow]"
+        )
+        return
+
+    dispositivos = scan_dispositivos()
+    if not dispositivos:
+        consola.print(
+            "[yellow]No se detectaron dispositivos. Intenta de nuevo en unos segundos.[/yellow]"
+        )
+        return
+
+    router_ip = _gateway_ip(red.get("rango") or [])
+    if not router_ip:
+        consola.print("[red]No se pudo identificar el router de la red.[/red]")
+        return
+
+    with consola.status("Resolviendo la MAC del router..."):
+        router_mac = obtener_mac(router_ip)
+    if not router_mac:
+        consola.print(f"[red]No se pudo resolver la MAC del router {router_ip}.[/red]")
+        return
+
+    resultados: list[dict] = []
+    with Live(console=consola, refresh_per_second=4, screen=False) as live:
+        def actualizar(nuevos: list[dict]) -> None:
+            nonlocal resultados
+            resultados = nuevos
+            live.update(_tabla_trafico(resultados, "Tráfico en vivo"))
+
+        try:
+            resultados = monitorear(
+                dispositivos,
+                router_ip,
+                router_mac,
+                intervalo=2,
+                actualizar=actualizar,
+            )
+        finally:
+            live.update(_tabla_trafico(resultados, "Resumen final"))
+
+    consola.print(_tabla_trafico(resultados, "Resumen final"))
+
+
 def main() -> None:
     try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -225,6 +404,7 @@ def main() -> None:
     if consola.width < 110:
         consola = Console(width=110)
 
+    _advertencia_inicial(consola)
     args = _parse_args()
 
     if args.confiables:
@@ -232,6 +412,9 @@ def main() -> None:
         return
     if args.dispositivos:
         _mostrar_dispositivos(consola)
+        return
+    if args.trafico:
+        _flujo_trafico(consola)
         return
     if args.olvidar:
         _olvidar(consola, args.olvidar)

@@ -9,7 +9,7 @@ Proyecto académico de Fundamentos de Redes. Enfoque DEFENSIVO únicamente.
 - `core/` no importa nada de `cli/` ni `server/` (solo lógica, sin UI).
 - Sin modo monitor: el escaneo usa comandos del SO (netsh / nmcli).
 - Sin ML ni SDN.
-- Sin funciones ofensivas (no deauth, no crear APs falsos, no ARP spoofing).
+- Sin funciones ofensivas (no deauth, no crear APs falsos). ARP spoofing solo en Fase 4, con consentimiento explícito del usuario y únicamente en redes propias o administradas por el usuario.
 - Soporte: Windows y Linux. macOS opcional.
 - Stack: Python, Scapy (ARP), Flask o FastAPI, rich, PyInstaller.
 - La app no debe caerse si no hay red ni internet.

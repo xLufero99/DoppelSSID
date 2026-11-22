@@ -98,6 +98,13 @@ def _parse_args() -> argparse.Namespace:
         action="store_true",
         help="monitorea el consumo de tráfico por dispositivo",
     )
+    parser.add_argument(
+        "--servidor",
+        "--web",
+        dest="servidor",
+        action="store_true",
+        help="levanta el servidor local con la API JSON",
+    )
     return parser.parse_args()
 
 
@@ -406,6 +413,12 @@ def main() -> None:
 
     _advertencia_inicial(consola)
     args = _parse_args()
+
+    if args.servidor:
+        from server.app import ejecutar_servidor
+
+        ejecutar_servidor()
+        return
 
     if args.confiables:
         _listar_confiables(consola)

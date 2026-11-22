@@ -2,3 +2,5 @@ rich
 pytest
 psutil
 scapy
+flask
+flask-cors

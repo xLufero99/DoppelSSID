@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DoppelSSID · Panel de red</title>
+  <link rel="stylesheet" href="css/estilo.css">
+</head>
+<body>
+  <a class="salto" href="#contenido">Saltar al contenido</a>
+
+  <header class="cabecera">
+    <div class="contenedor cabecera-inner">
+      <a class="marca" href="#contenido">DoppelSSID</a>
+      <div class="resumen" id="resumen" role="status" aria-live="polite">
+        <div class="stat stat-segura">
+          <span class="stat-valor" id="stat-segura">0</span>
+          <span class="stat-etiqueta">segura</span>
+        </div>
+        <span class="stat-divisor" aria-hidden="true"></span>
+        <div class="stat stat-precaucion">
+          <span class="stat-valor" id="stat-precaucion">0</span>
+          <span class="stat-etiqueta">precaución</span>
+        </div>
+        <span class="stat-divisor" aria-hidden="true"></span>
+        <div class="stat stat-riesgo">
+          <span class="stat-valor" id="stat-riesgo">0</span>
+          <span class="stat-etiqueta">riesgo</span>
+        </div>
+      </div>
+    </div>
+    <nav class="nav" aria-label="Secciones del panel">
+      <div class="contenedor nav-inner">
+        <a class="nav-enlace" href="#redes">Redes</a>
+        <a class="nav-enlace" href="#dispositivos">Dispositivos</a>
+        <a class="nav-enlace" href="#confiables">Confiables</a>
+        <a class="nav-enlace" href="#trafico">Tráfico</a>
+      </div>
+    </nav>
+  </header>
+
+  <main class="contenedor" id="contenido">
+    <h1 class="sr-only">Panel de control de DoppelSSID</h1>
+
+    <section class="seccion" id="redes" aria-labelledby="titulo-redes">
+      <div class="seccion-cabecera">
+        <div>
+          <h2 id="titulo-redes">Redes WiFi</h2>
+          <p>Compara los BSSID que anuncian el mismo nombre.</p>
+        </div>
+        <div class="acciones">
+          <button class="btn btn-primario" id="btn-redes" type="button">Actualizar escaneo</button>
+        </div>
+      </div>
+      <p class="mensaje" id="estado-redes" role="status" aria-live="polite"></p>
+      <div class="tabla-contenedor">
+        <table class="tabla tabla-redes" id="tabla-redes">
+          <thead>
+            <tr>
+              <th scope="col">SSID</th>
+              <th scope="col">BSSID(s)</th>
+              <th scope="col">Estado</th>
+              <th scope="col">Motivos</th>
+              <th scope="col">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="cuerpo-redes"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="seccion" id="dispositivos" aria-labelledby="titulo-dispositivos">
+      <div class="seccion-cabecera">
+        <div>
+          <h2 id="titulo-dispositivos">Dispositivos</h2>
+          <p>Equipos visibles en la red local. La búsqueda hace ping a toda la subred.</p>
+        </div>
+        <div class="acciones">
+          <button class="btn btn-primario" id="btn-dispositivos" type="button">Buscar dispositivos</button>
+        </div>
+      </div>
+      <p class="mensaje" id="estado-dispositivos" role="status" aria-live="polite"></p>
+      <div class="tabla-contenedor">
+        <table class="tabla tabla-dispositivos" id="tabla-dispositivos">
+          <thead>
+            <tr>
+              <th scope="col">IP</th>
+              <th scope="col">MAC</th>
+              <th scope="col">Fabricante</th>
+              <th scope="col">Equipo</th>
+            </tr>
+          </thead>
+          <tbody id="cuerpo-dispositivos"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="seccion" id="confiables" aria-labelledby="titulo-confiables">
+      <div class="seccion-cabecera">
+        <div>
+          <h2 id="titulo-confiables">Redes de confianza</h2>
+          <p>Perfiles guardados con sus BSSID y seguridad habitual.</p>
+        </div>
+      </div>
+      <p class="mensaje" id="estado-confiables" role="status" aria-live="polite"></p>
+      <ul class="lista-confiables" id="lista-confiables"></ul>
+    </section>
+
+    <section class="seccion seccion-trafico" id="trafico" aria-labelledby="titulo-trafico">
+      <div class="panel-trafico" id="panel-trafico">
+        <div class="seccion-cabecera">
+          <div>
+            <h2 id="titulo-trafico">Tráfico en vivo</h2>
+            <p>Mide el consumo de tu propia red. Solo continúa si la administras.</p>
+          </div>
+          <div class="indicador" id="indicador-trafico" aria-live="polite">
+            <span class="punto" id="punto-trafico" aria-hidden="true"></span>
+            <span id="texto-indicador">Detenido</span>
+          </div>
+        </div>
+        <dl class="capacidades">
+          <div>
+            <dt>Administrador</dt>
+            <dd id="cap-admin">Comprobando…</dd>
+          </div>
+          <div>
+            <dt>Npcap</dt>
+            <dd id="cap-npcap">Comprobando…</dd>
+          </div>
+        </dl>
+        <p class="mensaje" id="estado-trafico" role="status" aria-live="polite">Comprobando permisos…</p>
+        <div class="acciones acciones-trafico">
+          <button class="btn btn-peligro" id="btn-iniciar-trafico" type="button" disabled>Iniciar monitoreo de tráfico</button>
+          <button class="btn btn-fantasma" id="btn-detener-trafico" type="button" hidden>Detener monitoreo</button>
+        </div>
+        <div class="tabla-contenedor tabla-contenedor-trafico">
+          <table class="tabla tabla-trafico" id="tabla-trafico">
+            <caption class="titulo-tabla" id="titulo-tabla-trafico">Tráfico en vivo</caption>
+            <thead>
+              <tr>
+                <th scope="col">IP</th>
+                <th scope="col">Fabricante</th>
+                <th scope="col">KB</th>
+                <th scope="col">%</th>
+                <th scope="col">Participación</th>
+              </tr>
+            </thead>
+            <tbody id="cuerpo-trafico"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <dialog class="modal" id="modal" aria-labelledby="modal-titulo" aria-describedby="modal-cuerpo">
+    <div class="modal-contenido">
+      <h2 class="modal-titulo" id="modal-titulo"></h2>
+      <p class="modal-cuerpo" id="modal-cuerpo"></p>
+      <div class="acciones modal-acciones">
+        <button class="btn btn-fantasma" id="modal-cancelar" type="button">Cancelar</button>
+        <button class="btn btn-primario" id="modal-confirmar" type="button">Confirmar</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="js/app.js" defer></script>
+</body>
+</html>

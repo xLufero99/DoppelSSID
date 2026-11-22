@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import atexit
+from pathlib import Path
 
 from flask import Flask, jsonify
 from flask_cors import CORS
@@ -10,8 +11,15 @@ from server import rutas_confiables, rutas_dispositivos, rutas_redes, rutas_traf
 from server.cache import CacheConTTL
 
 
+FRONTEND_DIR = Path(__file__).resolve().parents[2] / "Frontend"
+
+
 def create_app() -> Flask:
-    app = Flask(__name__)
+    app = Flask(
+        __name__,
+        static_folder=str(FRONTEND_DIR),
+        static_url_path="",
+    )
     app.config["CACHE_REDES_SEGUNDOS"] = 5
     app.config["CACHE_DISPOSITIVOS_SEGUNDOS"] = 15
     app.config["CORS_ORIGENES"] = []
@@ -19,6 +27,10 @@ def create_app() -> Flask:
         "redes": CacheConTTL(),
         "dispositivos": CacheConTTL(),
     }
+
+    @app.get("/")
+    def indice():
+        return app.send_static_file("index.html")
 
     @app.errorhandler(HTTPException)
     def _error_http(error: HTTPException):
